@@ -184,7 +184,7 @@ process bamstats {
  */
 
 process multiqc {
-    publishDir params.output, mode:'copy'
+    publishDir "${params.outdir}/MultiQC", mode: 'copy'
        
     input:
     file('*') from hisat2_multiqc.collect()
