@@ -192,7 +192,7 @@ process multiqc {
     file('*') from flagstat_multiqc.collect()
     
     output:
-    file('multiqc_report.html')  
+    file("*") into viz
      
     script:
     """
