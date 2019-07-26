@@ -11,8 +11,8 @@
  */
 
 
-params.genome_file = "$baseDir/example-data/genome/chrX_reduced.fa"
-params.input_folder  = "$baseDir/example-data/reads"
+params.genome_file = "$baseDir/example/genome/chrX_reduced.fa"
+params.input_folder  = "$baseDir/example/reads"
 params.reads_extension = "*_{1,2}.fastq.gz"
 params.sample_id     = "ERR188383"
 params.output        = "results/"
