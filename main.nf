@@ -13,7 +13,7 @@
 log.info "RMATS - N F  ~  version 1.0"
 log.info "====================================="
 log.info "Accession list        : ${params.accessionList}"
-log.info "Manifest file         : ${params.manifestFile ? params.manifestFile : 'Not provided'}"
+log.info "Key file              : ${params.keyFile ? params.keyFile : 'Not provided'}"
 log.info "Gencode annotation    : ${params.gencodeFile}"
 log.info "Genome                : ${params.genomeFile}"
 log.info "HISAT2 index          : ${params.hisat2_index}"
@@ -33,7 +33,7 @@ def helpMessage() {
       --gencodeFile                 Path to input gencode GTF file
 
       -profile                      Configuration profile to use. Can use multiple (comma separated)
-                                    Available: short-test, manifest-test, ...
+                                    Available: short-test, key-test, ...
     Generic:
       --readType                    Specifies what type of input reads are to be processed: single end or paired end
       --readLength                  Specifies the read length
@@ -54,7 +54,7 @@ if (params.help) {
  *      CHANNELS SETUP           *
  *********************************/
 
-manifestFile = file(params.manifestFile)
+keyFile = file(params.keyFile)
 
 Channel
     .fromPath( params.accessionList )
@@ -151,7 +151,7 @@ process getAccession {
     set val(accession), file("*.fastq.gz") into readFiles
 
     script:
-    def vdbConfigCmd = manifestFile.name != 'NO_FILE' ? "vdb-config --import ${manifestFile} ./" : ''
+    def vdbConfigCmd = keyFile.name != 'NO_FILE' ? "vdb-config --import ${keyFile} ./" : ''
     """
     $vdbConfigCmd
     #prefetch -X ${params.spotsNumber} -N ${task.cpus} $accession
