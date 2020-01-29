@@ -9,7 +9,8 @@
  * Anne Deslattes Mays
  * Pablo Prieto Barja <pablo.prieto.barja@gmail.com>
  */
-log.info "RMATS - N F  ~  version 1.0"
+
+log.info "Paired rMATS - N F  ~  version 0.1"
 log.info "====================================="
 log.info "Accession list        : ${params.accessionList}"
 log.info "Key file              : ${params.keyFile ? params.keyFile : 'Not provided'}"
@@ -18,6 +19,7 @@ log.info "Read type             : ${params.readType}"
 log.info "Read length           : ${params.readLength}"
 log.info "output                : ${params.output}"
 log.info "\n"
+
 def helpMessage() {
     log.info """
     Usage:
@@ -37,30 +39,45 @@ def helpMessage() {
 /*********************************
  *      CHANNELS SETUP           *
  *********************************/
+
 key_file = file(params.keyFile)
-Channel
-    .fromPath( params.accessionList )
-    .splitText()
-    .map{ it.trim() }
-    .dump(tag: 'AccessionList content')
-    .set { accessionIDs }
-Channel
-        .value(file(params.gencodeFile))
-        .ifEmpty { error "Cannot find any Gencode GTF annotaton for parameter --gencode: ${params.gencodeFile}" }
-        .set { gencodeFile }
-if (!params.readLength) {
-        exit 1, "Cannot find read length value assigned"
-}
-if (!params.readType) {
-        exit 1, "Cannot find read type value assigned"
+
+
+if(params.accessionList) {
+    Channel
+        .fromPath( params.accessionList )
+        .splitText()
+        .map{ it.trim() }
+        .dump(tag: 'AccessionList content')
+        .set { accessionIDs }
+} else {
+    exit 1, "Accession list file not provided"
 }
 
-**********************************
+if(params.gencodeFile) {
+    Channel
+        .value(file(params.gencodeFile))
+        .ifEmpty { error "Cannot find any Gencode GTF annotaton for parameter --gencode: ${params.gencodeFile}" }
+        .set { gencodeFile }    
+} else {
+    exit 1, "Gencode annotation file not provided"
+}
+
+if (!params.readLength) {
+    exit 1, "Read length parameter not provided"
+}
+if (!params.readType) {
+    exit 1, "Read type parameter not provided"
+}
+
+/**********************************
  *      PIPELINE PROCESSES        *
  **********************************/
+
 /*
- * Get accession samples
+ * Get accession samples from SRA with or without keyFile
  */
+
 process getAccession {
     tag "${accession}"
     input:
@@ -77,6 +94,9 @@ process getAccession {
     """
 }
 
+/*
+ * Trim files to a fixed length with Fastp
+ */
 
 process trimming {
     tag "${accession}"
@@ -97,8 +117,9 @@ process trimming {
 }
 
 /*
- * Mapping
+ * Map read files to the transcriptome with Hisat2
  */
+
 process mapping {
     publishDir = [path: "${params.output}/alignments", mode: 'copy', overwrite: 'true' ]
     tag "mapping: $reads"
@@ -133,9 +154,11 @@ process mapping {
     }
 }
 
+
 /*
- * SortBam
+ * Sort BAM files with SAMTOOLS
  */
+
 process sortbam {
     publishDir = [path: "${params.output}/sorted_alignments", mode: 'copy', overwrite: 'true' ]
     tag "sortbam: $name"
@@ -154,9 +177,10 @@ process sortbam {
     """
 }
 
-*
- * MarkDuplicates
+/*
+ * Mark duplicates and sort with picard tools
  */
+
 process markduplicates {
     publishDir = [path: "${params.output}/marked_duplicates", mode: 'copy', overwrite: 'true' ]
     tag "markdups: $name"
@@ -181,13 +205,10 @@ process markduplicates {
     """
 }
 
-markedDups
-        .flatten()
-        .collate( 4 )
-        .set { pairedSamples }
 /*
- * Generate BAM statistics
+ * Generate BAM file statistics
  */
+ 
 process bamstats {
     publishDir = [path: "${params.output}/flagstats", mode: 'copy', overwrite: 'true' ]
     tag "bamstats: $name"
@@ -201,6 +222,19 @@ process bamstats {
     samtools view $bam | cut -f 10 | perl -ne 'chomp;print length(\$_) . "\n"' | sort | uniq -c >> ${name}.sorted.nodup.bam.flagstat.txt
     """
 }
+
+/*
+ * Group samples and their BAM files in pairs
+ */
+
+markedDups
+        .flatten()
+        .collate( 4 )
+        .set { pairedSamples }
+
+/*
+ * Run rMATS in pairs of samples
+ */
 
 process paired_rmats {
     publishDir "${params.output}/paired_rmats", mode: 'copy',
@@ -220,8 +254,6 @@ process paired_rmats {
     ls $sample1Bam > b1.txt
     ls $sample2Bam > b2.txt
     rmats.py --nthread ${task.cpus} --b1 b1.txt --b2 b2.txt --gtf $gencodeGtf --od ./ -t ${params.readType} --readLength ${params.readLength} --statoff
+    sampleCountsSave.sh ./ ${sample1Name} ${sample2Name}
     """
 }
-/*
-    sampleCountsSave.sh ./ ${sample1Name} ${sample2Name}
-*/
