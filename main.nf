@@ -42,6 +42,9 @@ def helpMessage() {
 
 key_file = file(params.keyFile)
 
+if(!params.starIndexPath) {
+  exit 1, "Cannot find STAR index path for rMATs"
+}
 
 if(params.accessionList) {
     Channel
@@ -248,12 +251,36 @@ process paired_rmats {
     set val(sample1Name), file(sample1Bam), val(sample2Name), file(sample2Bam) from pairedSamples
     file(gencodeGtf) from gencodeFile
     output:
-    file 'fromGTF.*.txt' into splicingEvents
+    set val(sample1Name), val(sample2Name), file('fromGTF.*.txt' ) into splicingEvents
     script:
     """
     ls $sample1Bam > b1.txt
     ls $sample2Bam > b2.txt
-    rmats.py --nthread ${task.cpus} --b1 b1.txt --b2 b2.txt --gtf $gencodeGtf --od ./ -t ${params.readType} --readLength ${params.readLength} --statoff
-    sampleCountsSave.sh ./ ${sample1Name} ${sample2Name}
+    rmats.py --nthread ${task.cpus} --b1 b1.txt --b2 b2.txt --bi ${params.starIndexPath} --gtf $gencodeGtf --od ./ -t ${params.readType} --readLength ${params.readLength} --statoff
     """
 }
+
+/*
+ * Run rMATS in pairs of samples
+ */
+
+process paired_rmats {
+    publishDir "${params.output}/processed_matrices", mode: 'copy',
+        saveAs: {filename ->
+              if (filename.indexOf("fromGTF.novelEvents") > 0) null
+              else if (filename.indexOf("fromGTF") > 0) "${sample1Name}_${sample2Name}/${filename}"
+              else null
+        }
+    tag "processed_rmats: ${sample1Name}_${sample2Name}"
+    input:
+    set val(sample1Name), val(sample2Name), file(fromGtf) from splicingEvents
+    output:
+    set val(sample1Name), val(sample2Name), file('fromGTF.*.txt' ) into splicingEvents
+    
+    script:
+    """
+    """
+}
+
+    //sampleCountsSave.sh ./ ${sample1Name} ${sample2Name}
+
