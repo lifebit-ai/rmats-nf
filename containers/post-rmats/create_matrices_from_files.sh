@@ -63,7 +63,9 @@ splitFiles=$astypeSpecificFile$joiner
 rmats_matrix="rmats_matrix"
 rmats_final="rmats_final"
 filelist="filelist"
-create_matrix="create-matrix.py"
+create_matrix_script="create-matrix.py"
+create_matrix=$(which "$create_matrix_script" 2>/dev/null)
+[ $? -gt 0 -a -f "$0" ] && create_matrix="$create_matrix_script"
 
 rmats_filelist=$rmats_final$joiner$astypeSpecificFile$joiner$filelist$joiner$ending
 rmats_final_matrix=$rmats_final$joiner$astypeSpecificFile

@@ -307,11 +307,10 @@ process sampleCountsSave {
     
     output:
     set file("${sample1Name}.*.txt"), file("${sample2Name}.*.txt") into savedSampleCounts
-    file('fromGTF.*.txt') into fromGtf
     
     script:
     """
-    sampleCountsSave.sh ./ ${sample1Name} ${sample2Name}
+    sampleCountsSave.sh . ${sample1Name} ${sample2Name}
     """
 }
 
@@ -323,8 +322,10 @@ process sampleCountsSave {
  */
 
  process createMatrices {
-    tag "createMatrices: ${sample1Name}_${sample2Name}"
+    tag "createMatrices: ${alternativeSplicingType}/${junctionCountType}/${countingType}/${params.splitNumber}"
     label 'postrmats'
+
+    publishDir = [path: "${params.output}/matrices", mode: 'copy', overwrite: 'true' ]
 
     input:
     file(allSamplesCounts) from savedSampleCounts.flatten().collect()
@@ -334,7 +335,7 @@ process sampleCountsSave {
     each countingType from countingTypeList
     
     output:
-    file('*.txt') into splicingMatrices
+    file 'rmats_final*' into splicingMatrices
     
     script:
     """
