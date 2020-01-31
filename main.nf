@@ -40,10 +40,18 @@ def helpMessage() {
  *      CHANNELS SETUP           *
  *********************************/
 
+alternativeSplicingTypeList = ['a3ss', 'a5ss', 'mxe', 'ri', 'se']
+junctionCountTypeList       = ['jc','jcec']
+countingTypeList            = ['ijc','sjc','inc','inclen','skiplen']
+
 key_file = file(params.keyFile)
 
 if(!params.starIndexPath) {
   exit 1, "Cannot find STAR index path for rMATs"
+}
+
+if(!params.splitNumber) {
+    exit 1, "Cannot find a splitNumber value set for createMatrices"
 }
 
 if(params.accessionList) {
@@ -83,11 +91,14 @@ if (!params.readType) {
 
 process getAccession {
     tag "${accession}"
+    
     input:
     val accession from accessionIDs
     file keyFile from key_file
+    
     output:
     set val(accession), file("*.fastq.gz") into readFiles
+    
     script:
     def vdbConfigCmd = keyFile.name != 'NO_FILE' ? "vdb-config --import ${keyFile} ./" : ''
     """
@@ -103,10 +114,13 @@ process getAccession {
 
 process trimming {
     tag "${accession}"
+    
     input:
     set val(accession), file(reads) from readFiles
+    
     output:
     set val(accession), file("*_trimmed.fastq.gz") into trimmedFiles
+    
     script:
     if (params.readType == "single") {
       """
@@ -124,14 +138,18 @@ process trimming {
  */
 
 process mapping {
-    publishDir = [path: "${params.output}/alignments", mode: 'copy', overwrite: 'true' ]
     tag "mapping: $reads"
+
+    publishDir = [path: "${params.output}/alignments", mode: 'copy', overwrite: 'true' ]
     cache 'lenient'
+    
     input:
     set val(name), file(reads) from trimmedFiles
+    
     output:
     set val(name), file("${name}.bam") into hisat2Bams
     file("${name}.hisat2_summary.txt") into hisat2Multiqc
+    
     script:
     if (params.readType == "single") {
                 """
@@ -163,12 +181,16 @@ process mapping {
  */
 
 process sortbam {
-    publishDir = [path: "${params.output}/sorted_alignments", mode: 'copy', overwrite: 'true' ]
     tag "sortbam: $name"
+
+    publishDir = [path: "${params.output}/sorted_alignments", mode: 'copy', overwrite: 'true' ]
+    
     input:
     set val(name), file(bam) from hisat2Bams
+    
     output:
     set val(name), file("${name}.sorted.bam") into sortedBams
+    
     script:
     avail_mem=""
     """
@@ -185,13 +207,17 @@ process sortbam {
  */
 
 process markduplicates {
-    publishDir = [path: "${params.output}/marked_duplicates", mode: 'copy', overwrite: 'true' ]
     tag "markdups: $name"
+    
+    publishDir = [path: "${params.output}/marked_duplicates", mode: 'copy', overwrite: 'true' ]
+    
     input:
     set val(name), file(bam) from sortedBams
+    
     output:
     set val(name), file("${name}.sorted.nodup.bam") into markedDups, bamstatsSamples
     file("${name}.metric.txt") into markduplicatesMultiqc
+    
     script:
     // Runtime java Mark duplicates options
     markdup_java_options="-Xmx30g"
@@ -213,12 +239,16 @@ process markduplicates {
  */
  
 process bamstats {
-    publishDir = [path: "${params.output}/flagstats", mode: 'copy', overwrite: 'true' ]
     tag "bamstats: $name"
+
+    publishDir = [path: "${params.output}/flagstats", mode: 'copy', overwrite: 'true' ]
+    
     input:
     set val(name), file(bam) from bamstatsSamples
+    
     output:
     file("${name}.sorted.nodup.bam.flagstat.txt") into flagstatMultiqc
+    
     script:
     """
     samtools flagstat $bam > ${name}.sorted.nodup.bam.flagstat.txt
@@ -240,18 +270,22 @@ markedDups
  */
 
 process paired_rmats {
+    tag "paired_rmats: ${sample1Name}_${sample2Name}"
+
     publishDir "${params.output}/paired_rmats", mode: 'copy',
         saveAs: {filename ->
               if (filename.indexOf("fromGTF.novelEvents") > 0) null
               else if (filename.indexOf("fromGTF") > 0) "${sample1Name}_${sample2Name}/${filename}"
               else null
         }
-    tag "paired_rmats: ${sample1Name}_${sample2Name}"
+    
     input:
     set val(sample1Name), file(sample1Bam), val(sample2Name), file(sample2Bam) from pairedSamples
     file(gencodeGtf) from gencodeFile
+    
     output:
-    set val(sample1Name), val(sample2Name), file('fromGTF.*.txt' ) into splicingEvents
+    set val(sample1Name), val(sample2Name), file('*.txt') into rmatsCounts
+    
     script:
     """
     ls $sample1Bam > b1.txt
@@ -261,26 +295,50 @@ process paired_rmats {
 }
 
 /*
- * Run rMATS in pairs of samples
+ * Save counts per sample
  */
 
-process paired_rmats {
-    publishDir "${params.output}/processed_matrices", mode: 'copy',
-        saveAs: {filename ->
-              if (filename.indexOf("fromGTF.novelEvents") > 0) null
-              else if (filename.indexOf("fromGTF") > 0) "${sample1Name}_${sample2Name}/${filename}"
-              else null
-        }
-    tag "processed_rmats: ${sample1Name}_${sample2Name}"
+process sampleCountsSave {
+    tag "sampleCountsSave: ${sample1Name}_${sample2Name}"
+    label 'postrmats'
+
     input:
-    set val(sample1Name), val(sample2Name), file(fromGtf) from splicingEvents
+    set val(sample1Name), val(sample2Name), file(counts) from rmatsCounts
+    
     output:
-    set val(sample1Name), val(sample2Name), file('fromGTF.*.txt' ) into splicingEvents
+    set file("${sample1Name}.*.txt"), file("${sample2Name}.*.txt") into savedSampleCounts
+    file('fromGTF.*.txt') into fromGtf
     
     script:
     """
+    sampleCountsSave.sh ./ ${sample1Name} ${sample2Name}
     """
 }
 
-    //sampleCountsSave.sh ./ ${sample1Name} ${sample2Name}
 
+/* 
+ * Normalize the counts
+ *          &
+ * Create matrices from all sample count files
+ */
+
+ process createMatrices {
+    tag "createMatrices: ${sample1Name}_${sample2Name}"
+    label 'postrmats'
+
+    input:
+    file(allSamplesCounts) from savedSampleCounts.flatten().collect()
+    file(fromGtfs) from fromGtf.first()
+    each alternativeSplicingType from alternativeSplicingTypeList
+    each junctionCountType from junctionCountTypeList
+    each countingType from countingTypeList
+    
+    output:
+    file('*.txt') into splicingMatrices
+    
+    script:
+    """
+    normalize_matrices_from_files.sh ${alternativeSplicingType} ${junctionCountType} ${countingType}
+    create_matrices_from_files.sh ${alternativeSplicingType} ${junctionCountType} ${countingType} ${params.splitNumber}
+    """
+}
