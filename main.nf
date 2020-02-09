@@ -139,9 +139,6 @@ process trimming {
 
 process mapping {
     tag "mapping: $reads"
-
-    publishDir = [path: "${params.output}/alignments", mode: 'copy', overwrite: 'true' ]
-    cache 'lenient'
     
     input:
     set val(name), file(reads) from trimmedFiles
@@ -182,8 +179,6 @@ process mapping {
 
 process sortbam {
     tag "sortbam: $name"
-
-    publishDir = [path: "${params.output}/sorted_alignments", mode: 'copy', overwrite: 'true' ]
     
     input:
     set val(name), file(bam) from hisat2Bams
@@ -208,8 +203,6 @@ process sortbam {
 
 process markduplicates {
     tag "markdups: $name"
-    
-    publishDir = [path: "${params.output}/marked_duplicates", mode: 'copy', overwrite: 'true' ]
     
     input:
     set val(name), file(bam) from sortedBams
