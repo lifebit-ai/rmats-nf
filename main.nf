@@ -10,7 +10,7 @@
  * Pablo Prieto Barja <pablo.prieto.barja@gmail.com>
  */
 
-log.info "Paired rMATS - N F  ~  version 0.1"
+log.info "Paired rMATS - N F  ~  version 0.2"
 log.info "====================================="
 log.info "Accession list        : ${params.accessionList}"
 log.info "Key file              : ${params.keyFile ? params.keyFile : 'Not provided'}"
@@ -28,9 +28,11 @@ def helpMessage() {
     Mandatory arguments:
       --accessionList               Path to input file with accession list to fetch from SRA
       --gencodeFile                 Path to input gencode GTF file
+      --keyFile                     Path to a keyfile used to fetch restricted access datasets with SRAtools
       -profile                      Configuration profile to use. Can use multiple (comma separated)
                                     Available: short-test, key-test, ...
     Generic:
+      --skipTrimming                Sets if trimming has to be skipped
       --readType                    Specifies what type of input reads are to be processed: single end or paired end
       --readLength                  Specifies the read length
     """.stripIndent()
@@ -109,28 +111,32 @@ process getAccession {
 }
 
 /*
- * Trim files to a fixed length with Fastp
+ * Optionally trim files to a fixed length with Fastp
  */
-
-process trimming {
-    tag "${accession}"
-    
-    input:
-    set val(accession), file(reads) from readFiles
-    
-    output:
-    set val(accession), file("*_trimmed.fastq.gz") into trimmedFiles
-    
-    script:
-    if (params.readType == "single") {
-      """
-      fastp -w ${task.cpus} -i ${reads} -b ${params.readLength} -o ${accession}_trimmed.fastq.gz
-      """
-    } else {
-      """
-      fastp -w ${task.cpus} -i ${reads[0]} -I ${reads[1]} -b ${params.readLength} -B  ${params.readLength} -o ${accession}_R1_trimmed.fastq.gz -O ${accession}_R2_trimmed.fastq.gz
-      """
+if(!params.skipTrimming) {
+    process trimming {
+        tag "${accession}"
+        
+        input:
+        set val(accession), file(reads) from readFiles
+        
+        output:
+        set val(accession), file("*_trimmed.fastq.gz") into trimmedFiles
+        
+        script:
+        if (params.readType == "single") {
+          """
+          fastp -w ${task.cpus} -i ${reads} -b ${params.readLength} -o ${accession}_trimmed.fastq.gz
+          """
+        } else {
+          """
+          fastp -w ${task.cpus} -i ${reads[0]} -I ${reads[1]} -b ${params.readLength} -B  ${params.readLength} -o ${accession}_R1_trimmed.fastq.gz -O ${accession}_R2_trimmed.fastq.gz
+          """
+        }
     }
+} else {
+   readFiles
+       .set {trimmedFiles}
 }
 
 /*
