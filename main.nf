@@ -270,6 +270,7 @@ markedDups
 
 process paired_rmats {
     tag "paired_rmats: ${sample1Name}_${sample2Name}"
+    label 'rmats'
 
     publishDir "${params.output}/paired_rmats", mode: 'copy',
         saveAs: {filename ->
@@ -277,30 +278,38 @@ process paired_rmats {
               else if (filename.indexOf("fromGTF") > 0) "${sample1Name}_${sample2Name}/${filename}"
               else null
         }
-    
+
     input:
     set val(sample1Name), file(sample1Bam), val(sample2Name), file(sample2Bam) from pairedSamples
     file(gencodeGtf) from gencodeFile
-    
+
     output:
-    set val(sample1Name), val(sample2Name), file('*.txt') into rmatsCounts
-    file 'fromGTF*' into fromGtf
-    
+    set val(sample1Name), val(sample2Name), file('rmats_output') into rmatsCounts
+    file 'rmats_output/ASEvents/fromGTF*' into fromGtf
+
     script:
     """
-    ls $sample1Bam > b1.txt
-    ls $sample2Bam > b2.txt
-    rmats.py --nthread ${task.cpus} --b1 b1.txt --b2 b2.txt --bi ${params.starIndexPath} --gtf $gencodeGtf --od ./ -t ${params.readType} --readLength ${params.readLength} --statoff
+    RNASeq-MATS.py \
+        -b1 $sample1Bam \
+        -b2 $sample2Bam \
+        -gtf $gencodeGtf \
+        -t ${params.readType} \
+        -len ${params.readLength} \
+        -c ${params.cutoffSplicingDifference} \
+        -analysis ${params.analysisType} \
+        -novelSS ${params.novelDetectionFlag} \
+        -a ${params.achorLength} \
+        -keepTemp \
+        -o rmats_output
     """
 }
-
 /*
  * Save counts per sample
  */
 
 process sampleCountsSave {
     tag "sampleCountsSave: ${sample1Name}_${sample2Name}"
-    label 'postrmats'
+    label 'rmats'
 
     input:
     set val(sample1Name), val(sample2Name), file(counts) from rmatsCounts
@@ -323,7 +332,6 @@ process sampleCountsSave {
 
  process createMatrices {
     tag "createMatrices: ${alternativeSplicingType}/${junctionCountType}/${countingType}/${params.splitNumber}"
-    label 'postrmats'
 
     publishDir = [path: "${params.output}/matrices", mode: 'copy', overwrite: 'true' ]
 
@@ -339,7 +347,6 @@ process sampleCountsSave {
     
     script:
     """
-    normalize_matrices_from_files.sh ${alternativeSplicingType} ${junctionCountType} ${countingType}
     create_matrices_from_files.sh ${alternativeSplicingType} ${junctionCountType} ${countingType} ${params.splitNumber}
     """
 }
