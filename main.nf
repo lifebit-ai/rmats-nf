@@ -311,6 +311,13 @@ process sampleCountsSave {
     tag "sampleCountsSave: ${sample1Name}_${sample2Name}"
     label 'rmats'
 
+    publishDir "${params.output}/sampleCounts", mode: 'copy',
+        saveAs: {filename ->
+              if (filename.indexOf("$sample1Name") == 0) "${sample1Name}/${filename}"
+              else if (filename.indexOf("$sample2Name") == 0) "${sample2Name}/${filename}"
+              else null
+        }
+
     input:
     set val(sample1Name), val(sample2Name), file(counts) from rmatsCounts
     
