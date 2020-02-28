@@ -225,7 +225,7 @@ process markduplicates {
     
     script:
     // Runtime java Mark duplicates options
-    markdup_java_options="-Xmx30g"
+    markdup_java_options="-Xmx${task.memory.toGiga()}g"
     """
     picard ${markdup_java_options} MarkDuplicates \\
         INPUT=$bam \\
@@ -311,7 +311,7 @@ process paired_rmats {
 
 process sampleCountsSave {
     tag "sampleCountsSave: ${sample1Name}_${sample2Name}"
-    label 'rmats'
+    label 'postrmats'
 
     publishDir = [path: "${params.output}/split_matrices", mode: 'copy', overwrite: 'true' ]
 
@@ -336,6 +336,7 @@ process sampleCountsSave {
 
  process createMatrices {
     tag "createMatrices: ${alternativeSplicingType}/${junctionCountType}/${countingType}/${params.splitNumber}"
+    label 'postrmats'
 
     publishDir = [path: "${params.output}/merged_matrices", mode: 'copy', overwrite: 'true' ]
 
