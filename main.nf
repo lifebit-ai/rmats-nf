@@ -279,12 +279,7 @@ process paired_rmats {
     tag "paired_rmats: ${sample1Name}_${sample2Name}"
     label 'rmats'
 
-    publishDir "${params.output}/paired_rmats", mode: 'copy',
-        saveAs: {filename ->
-              if (filename.indexOf("fromGTF.novelEvents") > 0) null
-              else if (filename.indexOf("fromGTF") > 0) "${sample1Name}_${sample2Name}/${filename}"
-              else null
-        }
+    publishDir = [path: "${params.output}/paired_rmats", mode: 'copy']}
 
     input:
     set val(sample1Name), file(sample1Bam), val(sample2Name), file(sample2Bam) from pairedSamples
@@ -305,7 +300,7 @@ process paired_rmats {
         -c ${params.cutoffSplicingDifference} \
         -analysis ${params.analysisType} \
         -novelSS ${params.novelDetectionFlag} \
-        -a ${params.achorLength} \
+        -a ${params.anchorLength} \
         -keepTemp \
         -o rmats_output
     """
@@ -318,22 +313,17 @@ process sampleCountsSave {
     tag "sampleCountsSave: ${sample1Name}_${sample2Name}"
     label 'rmats'
 
-    publishDir "${params.output}/sampleCounts", mode: 'copy',
-        saveAs: {filename ->
-              if (filename.indexOf("$sample1Name") == 0) "${sample1Name}/${filename}"
-              else if (filename.indexOf("$sample2Name") == 0) "${sample2Name}/${filename}"
-              else null
-        }
+    publishDir = [path: "${params.output}/split_matrices", mode: 'copy', overwrite: 'true' ]
 
     input:
     set val(sample1Name), val(sample2Name), file(counts) from rmatsCounts
     
     output:
-    set file("${sample1Name}.*.txt"), file("${sample2Name}.*.txt") into savedSampleCounts
+    set file("rmats_output/${sample1Name}.*.txt"), file("rmats_output/${sample2Name}.*.txt") into savedSampleCounts
     
     script:
     """
-    sampleCountsSave.sh . ${sample1Name} ${sample2Name}
+    sampleCountsSave.sh rmats_output ${sample1Name} ${sample2Name}
     """
 }
 
@@ -347,7 +337,7 @@ process sampleCountsSave {
  process createMatrices {
     tag "createMatrices: ${alternativeSplicingType}/${junctionCountType}/${countingType}/${params.splitNumber}"
 
-    publishDir = [path: "${params.output}/matrices", mode: 'copy', overwrite: 'true' ]
+    publishDir = [path: "${params.output}/merged_matrices", mode: 'copy', overwrite: 'true' ]
 
     input:
     file(allSamplesCounts) from savedSampleCounts.flatten().collect()
