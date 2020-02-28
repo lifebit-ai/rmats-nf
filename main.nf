@@ -90,24 +90,30 @@ if (!params.readType) {
 /*
  * Get accession samples from SRA with or without keyFile
  */
-
-process getAccession {
-    tag "${accession}"
-    
-    input:
-    val accession from accessionIDs
-    file keyFile from key_file
-    
-    output:
-    set val(accession), file("*.fastq.gz") into readFiles
-    
-    script:
-    def vdbConfigCmd = keyFile.name != 'NO_FILE' ? "vdb-config --import ${keyFile} ./" : ''
-    """
-    $vdbConfigCmd
-    fasterq-dump $accession --threads ${task.cpus} --split-3
-    pigz *.fastq
-    """
+if(!params.reads) {
+    process getAccession {
+        tag "${accession}"
+        
+        input:
+        val accession from accessionIDs
+        file keyFile from key_file
+        
+        output:
+        set val(accession), file("*.fastq.gz") into readFiles
+        
+        script:
+        def vdbConfigCmd = keyFile.name != 'NO_FILE' ? "vdb-config --import ${keyFile} ./" : ''
+        """
+        $vdbConfigCmd
+        fasterq-dump $accession --threads ${task.cpus} --split-3
+        pigz *.fastq
+        """
+    }
+} else {
+    Channel
+        .fromFilePairs( params.reads, size: params.readType == 'single' ? 1 : 2 )
+        .ifEmpty { exit 1, "Cannot find any reads matching: ${params.reads}\nNB: Path needs to be enclosed in quotes!\nNB: Path requires at least one * wildcard!\nIf this is single-end data, please specify --singleEnd on the command line." }
+        .set { readFiles }
 }
 
 /*
@@ -260,9 +266,10 @@ process bamstats {
  */
 
 markedDups
-        .flatten()
-        .collate( 4 )
-        .set { pairedSamples }
+     .toSortedList { entry -> entry[0] }
+     .flatten()
+     .collate(4, false)
+     .set { pairedSamples }
 
 /*
  * Run rMATS in pairs of samples
