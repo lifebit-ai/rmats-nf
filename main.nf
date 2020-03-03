@@ -279,7 +279,7 @@ process paired_rmats {
     tag "paired_rmats: ${sample1Name}_${sample2Name}"
     label 'rmats'
 
-    publishDir = [path: "${params.output}/paired_rmats", mode: 'copy']}
+    publishDir = [path: "${params.output}/paired_rmats", mode: 'copy']
 
     input:
     set val(sample1Name), file(sample1Bam), val(sample2Name), file(sample2Bam) from pairedSamples
