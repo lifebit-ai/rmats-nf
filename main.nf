@@ -100,7 +100,7 @@ if(!params.reads) {
         
         output:
         set val(accession), file("*.fastq.gz") into readFiles
-        
+
         script:
         def vdbConfigCmd = keyFile.name != 'NO_FILE' ? "vdb-config --import ${keyFile} ./" : ''
         """
@@ -349,6 +349,9 @@ process sampleCountsSave {
     
     output:
     file 'rmats_final*' into splicingMatrices
+
+    when:
+    params.createMatrices == true
     
     script:
     """
