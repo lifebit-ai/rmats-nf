@@ -288,6 +288,7 @@ process paired_rmats {
     output:
     set val(sample1Name), val(sample2Name), file('rmats_output') into rmatsCounts
     file 'rmats_output/ASEvents/fromGTF*' into fromGtf
+    file("*")
 
     script:
     """
