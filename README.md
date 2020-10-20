@@ -1,1 +1,3 @@
-# rmats-nf: A pipeline retrieve RNA sequencing data from SRA and perform analysis with rmats 3.2.5
+# rmats-nf: 
+
+A pipeline to retrieve RNA sequencing data from SRA, perform alignment with hisat2 and characterize splicing events with rMATS 3.2.5.
